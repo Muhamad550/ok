@@ -16,8 +16,10 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include
+from django.views.generic import RedirectView
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('api/', include('blog.urls', namespace='blog')),  # Replace 'blog' with your app name
+    path('api/', include('blog.urls', namespace='blog')),
+    path('', RedirectView.as_view(url='/api/articles/', permanent=False)),
 ]
