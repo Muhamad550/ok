@@ -1,3 +1,4 @@
+```markdown
 # Article-Blog
 
 Article-Blog is a feature-rich blogging platform API built using Django and Django REST Framework (DRF). It allows users to create, manage, and interact with articles and reviews while ensuring secure user authentication and authorization. This project is the capstone submission for the ALX Backend Web Development program.
@@ -90,12 +91,10 @@ python manage.py migrate
 python manage.py runserver
 ```
 
-### Access the API: 
-Visit http://127.0.0.1:8000/ in your browser or use tools like Postman.
-
 ## Contributing
 Contributions are welcome! Feel free to open issues or submit pull requests on the GitHub repository.
 
 ## Contact
 - GitHub: [Muhamad550](https://github.com/Muhamad550)
 - Email: ma8287225@gmail.com
+```
