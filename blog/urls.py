@@ -1,24 +1,16 @@
 from django.urls import path
-from .views import (
-    BlogPostListCreateView,
-    BlogPostDetailView,
-    CategoryListView,
-    PostsByCategoryView,
-    CommentListCreateView,
-    CommentDetailView,
-    RegisterView, LoginView, LogoutView
-)
+from . import views
 
-app_name = 'blog'  # Set this to match the namespace in your project-level urls.py
+app_name = 'content'
 
 urlpatterns = [
-    path('posts/', BlogPostListCreateView.as_view(), name='post-list-create'),
-    path('posts/<slug:slug>/', BlogPostDetailView.as_view(), name='post-detail'),
-    path('categories/', CategoryListView.as_view(), name='category-list'),
-    path('categories/<int:category_id>/posts/', PostsByCategoryView.as_view(), name='posts-by-category'),
-    path('posts/<int:post_id>/comments/', CommentListCreateView.as_view(), name='comment-list-create'),
-    path('comments/<int:pk>/', CommentDetailView.as_view(), name='comment-detail'),
-    path('register/', RegisterView.as_view(), name='register'),
-    path('login/', LoginView.as_view(), name='login'),
-    path('logout/', LogoutView.as_view(), name='logout'),
+    path('articles/', views.ArticleListCreateView.as_view(), name='article-list'),
+    path('articles/<slug:slug>/', views.ArticleDetailView.as_view(), name='article-detail'),
+    path('topics/', views.TopicListView.as_view(), name='topic-list'),
+    path('topics/<int:topic_id>/articles/', views.ArticlesByTopicView.as_view(), name='articles-by-topic'),
+    path('articles/<int:article_id>/reviews/', views.ReviewListCreateView.as_view(), name='review-list'),
+    path('reviews/<int:pk>/', views.ReviewDetailView.as_view(), name='review-detail'),
+    path('register/', views.UserRegisterView.as_view(), name='user-register'),
+    path('login/', views.UserLoginView.as_view(), name='user-login'),
+    path('logout/', views.UserLogoutView.as_view(), name='user-logout'),
 ]

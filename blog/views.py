@@ -3,8 +3,8 @@ from rest_framework.response import Response
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.pagination import PageNumberPagination
 from django_filters.rest_framework import DjangoFilterBackend
-from .models import BlogPost, Category, Comment
-from .serializers import BlogPostSerializer, CategorySerializer, CommentSerializer, LoginSerializer, RegisterSerializer, LogoutSerializer, DeleteBlogPostSerializer
+from .models import Article, Topic, Review
+from .serializers import ArticleSerializer, TopicSerializer, ReviewSerializer, UserLoginSerializer, UserRegisterSerializer, UserLogoutSerializer, ArticleDeleteSerializer
 from django.contrib.auth.models import User
 from django.contrib.auth import authenticate, login, logout
 from rest_framework.views import APIView
@@ -16,117 +16,89 @@ from django.urls import reverse
 from django.http import HttpResponseRedirect
 
 
-
-# Pagination Setup
-class BlogPostPagination(PageNumberPagination):
-    page_size = 10
+class ArticlePagination(PageNumberPagination):
+    page_size = 12
 
 
-# BlogPost Views
-class BlogPostListCreateView(generics.ListCreateAPIView):
-    """
-    View to list all blog posts or create a new post.
-    """
-    queryset = BlogPost.objects.filter(status='published')
-    serializer_class = BlogPostSerializer
+class ArticleListCreateView(generics.ListCreateAPIView):
+    queryset = Article.objects.filter(is_published=True)
+    serializer_class = ArticleSerializer
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
-    pagination_class = BlogPostPagination
+    pagination_class = ArticlePagination
     filter_backends = [filters.SearchFilter, DjangoFilterBackend]
     search_fields = ['title', 'content']
-    filterset_fields = ['category', 'author']
+    filterset_fields = ['topic', 'author']
 
     def perform_create(self, serializer):
         serializer.save(author=self.request.user)
 
 
-class BlogPostDetailView(generics.RetrieveUpdateDestroyAPIView):
-    """
-    View to retrieve, update, or delete a specific blog post.
-    """
-    queryset = BlogPost.objects.all()
-    serializer_class = BlogPostSerializer
+class ArticleDetailView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = Article.objects.all()
+    serializer_class = ArticleSerializer
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
-    lookup_field = 'slug'  # ✅ This line ensures it works with slugs
+    lookup_field = 'slug'
 
     def perform_update(self, serializer):
         if serializer.instance.author != self.request.user:
-            raise PermissionDenied("You can only edit your own posts.")
+            raise PermissionDenied("You can only modify your own articles.")
         serializer.save()
 
     def delete(self, request, *args, **kwargs):
-        """
-        Override DELETE to show a confirmation form for the browsable API.
-        """
-        serializer = DeleteBlogPostSerializer(data=request.data)
-        if serializer.is_valid() and serializer.validated_data['confirm_delete']:
+        delete_serializer = ArticleDeleteSerializer(data=request.data)
+        if delete_serializer.is_valid() and delete_serializer.validated_data['confirm_deletion']:
             self.perform_destroy(self.get_object())
-            # ✅ Redirect back to the blog posts list after deletion in the HTML view
             if request.accepted_renderer.format == 'html':
-                return HttpResponseRedirect(reverse('blog:post-list-create'))
-            return Response({'message': 'Blog post deleted successfully.'}, status=status.HTTP_204_NO_CONTENT)
-        return Response({'error': 'Please confirm deletion.'}, status=status.HTTP_400_BAD_REQUEST)    
+                return HttpResponseRedirect(reverse('content:article-list'))
+            return Response({'message': 'Article removed successfully.'}, status=status.HTTP_204_NO_CONTENT)
+        return Response({'error': 'Deletion confirmation required.'}, status=status.HTTP_400_BAD_REQUEST)
 
 
-# Category Views
-class CategoryListView(generics.ListAPIView):
-    """
-    View to list all categories.
-    """
-    queryset = Category.objects.all()
-    serializer_class = CategorySerializer
+class TopicListView(generics.ListAPIView):
+    queryset = Topic.objects.all()
+    serializer_class = TopicSerializer
     permission_classes = [permissions.AllowAny]
 
 
-class PostsByCategoryView(generics.ListAPIView):
-    """
-    View to list posts by category.
-    """
-    serializer_class = BlogPostSerializer
+class ArticlesByTopicView(generics.ListAPIView):
+    serializer_class = ArticleSerializer
 
     def get_queryset(self):
-        category_id = self.kwargs.get('category_id')
-        return BlogPost.objects.filter(category__id=category_id, status='published')
+        topic_id = self.kwargs.get('topic_id')
+        return Article.objects.filter(topic__id=topic_id, is_published=True)
 
 
-# Comment Views
-class CommentListCreateView(generics.ListCreateAPIView):
-    """
-    View to list or create comments for a blog post.
-    """
-    serializer_class = CommentSerializer
+class ReviewListCreateView(generics.ListCreateAPIView):
+    serializer_class = ReviewSerializer
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
 
     def get_queryset(self):
-        post_id = self.kwargs.get('post_id')
-        return Comment.objects.filter(post__id=post_id)
+        article_id = self.kwargs.get('article_id')
+        return Review.objects.filter(article__id=article_id)
 
     def perform_create(self, serializer):
-        serializer.save(author=self.request.user, post_id=self.kwargs.get('post_id'))
+        serializer.save(user=self.request.user, article_id=self.kwargs.get('article_id'))
 
 
-class CommentDetailView(generics.RetrieveUpdateDestroyAPIView):
-    """
-    View to retrieve, update, or delete a specific comment.
-    """
-    queryset = Comment.objects.all()
-    serializer_class = CommentSerializer
+class ReviewDetailView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = Review.objects.all()
+    serializer_class = ReviewSerializer
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
 
     def perform_update(self, serializer):
-        if serializer.instance.author != self.request.user:
-            raise PermissionDenied("You can only edit your own comments.")
+        if serializer.instance.user != self.request.user:
+            raise PermissionDenied("You can only modify your own reviews.")
         serializer.save()
 
     def perform_destroy(self, instance):
-        # Ensure only the author can delete the comment
-        if instance.author != self.request.user:
-            raise PermissionDenied("You can only delete your own comments.")
+        if instance.user != self.request.user:
+            raise PermissionDenied("You can only remove your own reviews.")
         instance.delete()
 
 
-class RegisterView(APIView):
+class UserRegisterView(APIView):
     permission_classes = [AllowAny]
-    serializer_class = RegisterSerializer
+    serializer_class = UserRegisterSerializer
     renderer_classes = [BrowsableAPIRenderer, JSONRenderer]
 
     def post(self, request):
@@ -135,33 +107,32 @@ class RegisterView(APIView):
             username = serializer.validated_data['username']
             email = serializer.validated_data['email']
             password = serializer.validated_data['password']
-            confirm_password = serializer.validated_data['confirm_password']
+            password_confirmation = serializer.validated_data['password_confirmation']
 
-            if password != confirm_password:
-                return Response({'error': 'Passwords do not match.'}, status=status.HTTP_400_BAD_REQUEST)
+            if password != password_confirmation:
+                return Response({'error': 'Password confirmation does not match.'}, status=status.HTTP_400_BAD_REQUEST)
 
             if User.objects.filter(username=username).exists():
-                return Response({'error': 'Username already exists.'}, status=status.HTTP_400_BAD_REQUEST)
+                return Response({'error': 'Username is already taken.'}, status=status.HTTP_400_BAD_REQUEST)
             
-            # Create user and redirect to login page
-            user = User.objects.create_user(username=username, email=email, password=password)
-            token, _ = Token.objects.get_or_create(user=user)
+            user_account = User.objects.create_user(username=username, email=email, password=password)
+            auth_token, _ = Token.objects.get_or_create(user=user_account)
 
-            # Redirect only if it's the Browsable API (HTML)
             if request.accepted_renderer.format == 'html':
-                return redirect(reverse('blog:login'))  # Redirect to the login page
+                return redirect(reverse('content:user-login'))
             
-            # If it's an API request (JSON response)
-            return Response({'message': 'User registered successfully. Please log in', 'token': token.key}, status=status.HTTP_201_CREATED)
+            return Response({
+                'message': 'Account created successfully. Please sign in.',
+                'token': auth_token.key
+            }, status=status.HTTP_201_CREATED)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-
-class LoginView(APIView):
+class UserLoginView(APIView):
     permission_classes = [AllowAny]
-    serializer_class = LoginSerializer
-    renderer_classes = [BrowsableAPIRenderer, JSONRenderer]  # Important for form fields to show
+    serializer_class = UserLoginSerializer
+    renderer_classes = [BrowsableAPIRenderer, JSONRenderer]
 
     def post(self, request):
         serializer = self.serializer_class(data=request.data)
@@ -171,39 +142,32 @@ class LoginView(APIView):
 
             user = authenticate(username=username, password=password)
             if user:
-                # Token Authentication (for APIs)
-                token, _ = Token.objects.get_or_create(user=user)
+                auth_token, _ = Token.objects.get_or_create(user=user)
+                login(request, user)
 
-                 # Session Authentication (for Browsable API)
-                login(request, user)  # Logs the user into the session
-
-                return Response({'message': 'Login successful.', 'token': token.key}, status=status.HTTP_200_OK)
-            return Response({'error': 'Invalid credentials.'}, status=status.HTTP_401_UNAUTHORIZED)
+                return Response({
+                    'message': 'Sign in successful.',
+                    'token': auth_token.key
+                }, status=status.HTTP_200_OK)
+            return Response({'error': 'Invalid login credentials.'}, status=status.HTTP_401_UNAUTHORIZED)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-
-class LogoutView(APIView):
-    """
-    View to log out a user by deleting their authentication token.
-    """
+class UserLogoutView(APIView):
     permission_classes = [permissions.IsAuthenticated]
-    serializer_class = LogoutSerializer
+    serializer_class = UserLogoutSerializer
     renderer_classes = [BrowsableAPIRenderer, JSONRenderer]
 
     def post(self, request):
         serializer = self.serializer_class(data=request.data)
         if serializer.is_valid():
             try:
-                 # Clear token-based authentication
                 request.user.auth_token.delete()
-
-                # Clear session-based authentication for the browsable API
                 logout(request)
                 
-                return Response({'message': 'Logout successful.'}, status=status.HTTP_200_OK)
+                return Response({'message': 'Signed out successfully.'}, status=status.HTTP_200_OK)
             except AttributeError:
-                return Response({'error': 'You are not logged in.'}, status=status.HTTP_400_BAD_REQUEST)
+                return Response({'error': 'No active session found.'}, status=status.HTTP_400_BAD_REQUEST)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

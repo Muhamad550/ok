@@ -1,100 +1,45 @@
 from rest_framework import serializers
-from .models import BlogPost, Category, Comment
+from .models import Article, Topic, Review
 from django.contrib.auth.models import User
 
-# User Serializer
-class UserSerializer(serializers.ModelSerializer):
-    """
-    Serializer for User model to display limited user information.
-    """
+class TopicSerializer(serializers.ModelSerializer):
     class Meta:
-        model = User
-        fields = ['id', 'username', 'email']
+        model = Topic
+        fields = ['id', 'name']
 
-
-# Category Serializer
-class CategorySerializer(serializers.ModelSerializer):
-    """
-    Serializer for Category model.
-    """
-    class Meta:
-        model = Category
-        fields = [ 'name']
-
-
-# Comment Serializer
-class CommentSerializer(serializers.ModelSerializer):
-    """
-    Serializer for Comment model.
-    Includes nested representation of the author.
-    """
-    author = UserSerializer(read_only=True)
-
-    class Meta:
-        model = Comment
-        fields = ['id', 'post', 'author', 'content', 'created_at', 'updated_at']
-
-
-# BlogPost Serializer
-class BlogPostSerializer(serializers.ModelSerializer):
-    """
-    Serializer for BlogPost model.
-    Includes nested representation of the author and category.
-    """
-    author = UserSerializer(read_only=True)
-    category = CategorySerializer(read_only=True)
-    category_id = serializers.PrimaryKeyRelatedField(
-        queryset=Category.objects.all(),
-        source='category',
+class ArticleSerializer(serializers.ModelSerializer):
+    topic = TopicSerializer(read_only=True)
+    topic_id = serializers.PrimaryKeyRelatedField(
+        queryset=Topic.objects.all(), 
+        source='topic', 
         write_only=True
     )
-    liked_by = UserSerializer(many=True, read_only=True)  # Display users who liked the post
-    comments = CommentSerializer(many=True, read_only=True)  # Nested comments
-    is_liked = serializers.SerializerMethodField()
+    author = serializers.ReadOnlyField(source='author.username')
 
     class Meta:
-        model = BlogPost
-        fields = [
-            'id', 'title', 'slug', 'content', 'author', 'category', 'category_id',
-            'status', 'created_at', 'updated_at', 'liked_by', 'is_liked', 'comments'
-        ]
+        model = Article
+        fields = ['id', 'title', 'slug', 'content', 'author', 'topic', 'topic_id', 'created_at', 'updated_at', 'is_published']
 
-    def get_is_liked(self, obj):
-        """
-        Check if the current user has liked this post.
-        """
-        request = self.context.get('request')
-        if request and request.user.is_authenticated:
-            return obj.liked_by.filter(id=request.user.id).exists()
-        return False
+class ReviewSerializer(serializers.ModelSerializer):
+    author = serializers.ReadOnlyField(source='user.username')
+    article_title = serializers.ReadOnlyField(source='article.title')
 
-    def create(self, validated_data):
-        """
-        Overriding create method to allow assigning a category during post creation.
-        """
-        category = validated_data.pop('category', None)
-        post = BlogPost.objects.create(**validated_data)
-        if category:
-            post.category = category
-            post.save()
-        return post
-    
-class DeleteBlogPostSerializer(serializers.Serializer):
-    confirm_delete = serializers.BooleanField(default=False, help_text="Check to confirm deletion.")
+    class Meta:
+        model = Review
+        fields = ['id', 'article', 'article_title', 'user', 'author', 'text', 'created_at']
 
-
-class LoginSerializer(serializers.Serializer):
-    username = serializers.CharField(max_length=150)
-    password = serializers.CharField(write_only=True, style={'input_type': 'password'})
-
-
-class RegisterSerializer(serializers.Serializer):
-    username = serializers.CharField(max_length=150)
+class UserRegisterSerializer(serializers.Serializer):
+    username = serializers.CharField()
     email = serializers.EmailField()
-    password = serializers.CharField(write_only=True, style={'input_type': 'password'})
-    confirm_password = serializers.CharField(write_only=True, style={'input_type': 'password'})
+    password = serializers.CharField(write_only=True)
+    password_confirmation = serializers.CharField(write_only=True)
 
-    
-class LogoutSerializer(serializers.Serializer):
-    confirm_logout = serializers.BooleanField(default=True, help_text="Click 'Submit' to confirm logout.")
+class UserLoginSerializer(serializers.Serializer):
+    username = serializers.CharField()
+    password = serializers.CharField()
 
+class UserLogoutSerializer(serializers.Serializer):
+    confirm_logout = serializers.BooleanField(default=False)
+
+class ArticleDeleteSerializer(serializers.Serializer):
+    confirm_deletion = serializers.BooleanField(default=False)
